@@ -25,9 +25,10 @@ with st.sidebar:
 
 if apiKey:
 
+    st.write("Search For")
     keyword = st.text_input(
         "Write down a keyword",
-        placeholder="Research for keyword",
+        placeholder="keyword",
     )
 
     if keyword:
