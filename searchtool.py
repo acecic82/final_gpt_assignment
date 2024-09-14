@@ -57,7 +57,7 @@ functions = [
                 "properties": {
                     "keyword": {
                         "type": "string",
-                        "description": "Ticker symbol of the target",
+                        "description": "The name of the target",
                     },
                 },
                 "required": ["keyword"],
