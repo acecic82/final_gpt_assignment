@@ -46,7 +46,7 @@ if apiKey:
 else:
     st.markdown(
         """
-            # SiteGPT
+            # Final Assignment
                     
             Ask questions about the content of a website.
                     
