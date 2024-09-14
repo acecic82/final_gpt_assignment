@@ -1,136 +1,207 @@
-from langchain.schema import SystemMessage
-import streamlit as st
-import os
-import requests
-from typing import Type
-from langchain.chat_models import ChatOpenAI
-from langchain.tools import BaseTool
-from pydantic import BaseModel, Field
-from langchain.agents import initialize_agent, AgentType
-from langchain.utilities import DuckDuckGoSearchAPIWrapper
-
-llm = ChatOpenAI(temperature=0.1, model_name="gpt-3.5-turbo-1106")
-
-alpha_vantage_api_key = os.environ.get("ALPHA_VANTAGE_API_KEY")
+from time import sleep
+import openai as client
+from openai.types.beta.threads import RunStatus
+import json, yfinance
+from langchain.utilities.duckduckgo_search import DuckDuckGoSearchAPIWrapper
 
 
-class StockMarketSymbolSearchToolArgsSchema(BaseModel):
-    query: str = Field(
-        description="The query you will search for.Example query: Stock Market Symbol for Apple Company"
-    )
+def get_ticker(inputs):
+    ddg = DuckDuckGoSearchAPIWrapper()
+    company_name = inputs["company_name"]
+    return ddg.run(f"Ticker symbol of {company_name}")
 
 
-class StockMarketSymbolSearchTool(BaseTool):
-    name = "StockMarketSymbolSearchTool"
-    description = """
-    Use this tool to find the stock market symbol for a company.
-    It takes a query as an argument.
-    
-    """
-    args_schema: Type[StockMarketSymbolSearchToolArgsSchema] = (
-        StockMarketSymbolSearchToolArgsSchema
-    )
-
-    def _run(self, query):
-        ddg = DuckDuckGoSearchAPIWrapper()
-        return ddg.run(query)
+def get_income_statement(inputs):
+    ticker = inputs["ticker"]
+    stock = yfinance.Ticker(ticker)
+    return json.dumps(stock.income_stmt.to_json())
 
 
-class CompanyOverviewArgsSchema(BaseModel):
-    symbol: str = Field(
-        description="Stock symbol of the company.Example: AAPL,TSLA",
-    )
+def get_balance_sheet(inputs):
+    ticker = inputs["ticker"]
+    stock = yfinance.Ticker(ticker)
+    return json.dumps(stock.balance_sheet.to_json())
 
 
-class CompanyOverviewTool(BaseTool):
-    name = "CompanyOverview"
-    description = """
-    Use this to get an overview of the financials of the company.
-    You should enter a stock symbol.
-    """
-    args_schema: Type[CompanyOverviewArgsSchema] = CompanyOverviewArgsSchema
-
-    def _run(self, symbol):
-        r = requests.get(
-            f"https://www.alphavantage.co/query?function=OVERVIEW&symbol={symbol}&apikey={alpha_vantage_api_key}"
-        )
-        return r.json()
+def get_daily_stock_performance(inputs):
+    ticker = inputs["ticker"]
+    stock = yfinance.Ticker(ticker)
+    return json.dumps(stock.history(period="3mo").to_json())
 
 
-class CompanyIncomeStatementTool(BaseTool):
-    name = "CompanyIncomeStatement"
-    description = """
-    Use this to get the income statement of a company.
-    You should enter a stock symbol.
-    """
-    args_schema: Type[CompanyOverviewArgsSchema] = CompanyOverviewArgsSchema
-
-    def _run(self, symbol):
-        r = requests.get(
-            f"https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol={symbol}&apikey={alpha_vantage_api_key}"
-        )
-        return r.json()["annualReports"]
+functions_map = {
+    "get_ticker": get_ticker,
+    "get_income_statement": get_income_statement,
+    "get_balance_sheet": get_balance_sheet,
+    "get_daily_stock_performance": get_daily_stock_performance,
+}
 
 
-class CompanyStockPerformanceTool(BaseTool):
-    name = "CompanyStockPerformance"
-    description = """
-    Use this to get the weekly performance of a company stock.
-    You should enter a stock symbol.
-    """
-    args_schema: Type[CompanyOverviewArgsSchema] = CompanyOverviewArgsSchema
-
-    def _run(self, symbol):
-        r = requests.get(
-            f"https://www.alphavantage.co/query?function=TIME_SERIES_WEEKLY&symbol={symbol}&apikey={alpha_vantage_api_key}"
-        )
-        response = r.json()
-        return list(response["Weekly Time Series"].items())[:200]
-
-
-agent = initialize_agent(
-    llm=llm,
-    verbose=True,
-    agent=AgentType.OPENAI_FUNCTIONS,
-    handle_parsing_errors=True,
-    tools=[
-        CompanyIncomeStatementTool(),
-        CompanyStockPerformanceTool(),
-        StockMarketSymbolSearchTool(),
-        CompanyOverviewTool(),
-    ],
-    agent_kwargs={
-        "system_message": SystemMessage(
-            content="""
-            You are a hedge fund manager.
-            
-            You evaluate a company and provide your opinion and reasons why the stock is a buy or not.
-            
-            Consider the performance of a stock, the company overview and the income statement.
-            
-            Be assertive in your judgement and recommend the stock or advise the user against it.
-        """
-        )
+functions = [
+    {
+        "type": "function",
+        "function": {
+            "name": "get_ticker",
+            "description": "Given the name of a company returns its ticker symbol",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "company_name": {
+                        "type": "string",
+                        "description": "The name of the company",
+                    }
+                },
+                "required": ["company_name"],
+            },
+        },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_income_statement",
+            "description": "Given a ticker symbol (i.e AAPL) returns the company's income statement.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "Ticker symbol of the company",
+                    },
+                },
+                "required": ["ticker"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_balance_sheet",
+            "description": "Given a ticker symbol (i.e AAPL) returns the company's balance sheet.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "Ticker symbol of the company",
+                    },
+                },
+                "required": ["ticker"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_daily_stock_performance",
+            "description": "Given a ticker symbol (i.e AAPL) returns the performance of the stock for the last 100 days.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ticker": {
+                        "type": "string",
+                        "description": "Ticker symbol of the company",
+                    },
+                },
+                "required": ["ticker"],
+            },
+        },
+    },
+]
+
+assistant_id = "asst_QI04NakkIHNuaTes0RnIv7Ac"
+
+# assistant = client.beta.assistants.create(
+# name="Investor Assistant",
+# instructions="You help users do research on publicly traded companies and you help users decide if they should buy the stock or not.",
+# model="gpt-4-1106-preview",
+# tools=functions,
+# )
+
+thread = client.beta.threads.create(
+    messages=[
+        {
+            "role": "user",
+            "content": "I want to know if the Salesforce stock is a good buy",
+        }
+    ]
 )
 
-st.set_page_config(
-    page_title="InvestorGPT",
-    page_icon="💼",
+
+def send_message(thread_id, content):
+    return client.beta.threads.messages.create(
+        thread_id=thread_id, role="user", content=content
+    )
+
+
+# send_message(thread.id, "Now I want to know if Cloudflare is a good buy.")
+
+run = client.beta.threads.runs.create(
+    thread_id=thread.id,
+    assistant_id=assistant_id,
 )
 
-st.markdown(
-    """
-    # InvestorGPT
-            
-    Welcome to InvestorGPT.
-            
-    Write down the name of a company and our Agent will do the research for you.
-"""
-)
+print(thread)
+print(run)
 
-company = st.text_input("Write the name of the company you are interested on.")
 
-if company:
-    result = agent.invoke(company)
-    st.write(result["output"].replace("$", "\$"))
+def get_run(run_id, thread_id):
+    return client.beta.threads.runs.retrieve(
+        run_id=run_id,
+        thread_id=thread_id,
+    )
+
+
+def get_messages(thread_id):
+    messages = client.beta.threads.messages.list(thread_id=thread_id)
+    messages = list(messages)
+    messages.reverse()
+    for message in messages:
+        print(f"{message.role}: {message.content[0].text.value}")
+
+
+def get_tool_outputs(run_id, thread_id):
+    run = get_run(run_id, thread_id)
+    while run.status != "requires_action" and run.status != "completed":
+        run = get_run(run_id, thread_id)
+        print(run.status)
+        sleep(5)
+
+    # print(run)
+    outputs = []
+    for action in run.required_action.submit_tool_outputs.tool_calls:
+        action_id = action.id
+        function = action.function
+        print(f"Calling function: {function.name} with arg {function.arguments}")
+        outputs.append(
+            {
+                "output": functions_map[function.name](json.loads(function.arguments)),
+                "tool_call_id": action_id,
+            }
+        )
+    return outputs
+
+
+def submit_tool_outputs(run_id, thread_id):
+    outputs = get_tool_outputs(run_id, thread_id)
+    print(outputs)
+    return client.beta.threads.runs.submit_tool_outputs(
+        run_id=run_id,
+        thread_id=thread_id,
+        tool_outputs=outputs,
+    )
+
+
+# get_run(run.id, thread.id).status
+# print(runStatus)
+
+# get_tool_outputs(run.id, thread.id)
+
+submit_tool_outputs(run.id, thread.id)
+
+# get_run(run.id, thread.id).status
+
+get_messages(thread.id)
+
+print(get_run(run.id, thread.id).status)
+
+submit_tool_outputs(run.id, thread.id)
