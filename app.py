@@ -1,6 +1,6 @@
 import openai as client
 from assistant import makeThread, excuteRun, submitToolOutputs
-from openai import AuthenticationError
+from openai.error import AuthenticationError
 import streamlit as st
 
 
@@ -18,7 +18,7 @@ with st.sidebar:
         
         Github : https://github.com/acecic82/final_gpt_assignment 
 
-        streamlit : https://assignmentsitegpt-asevyw8zmrxkxbrxbqnydi.streamlit.app/
+        streamlit : https://finalgptassignment-hzpakc7ay8bm7dumwh9yta.streamlit.app/
 
         """
     )
