@@ -1,8 +1,8 @@
 import streamlit as st
-
 import json
 from searchtool import functions, functions_map
 from time import sleep
+from openai import NotFoundError
 import openai as client
 
 
@@ -36,10 +36,17 @@ def makeThread(keyword):
 
 
 def excuteRun(threadId, apiKey):
-    return client.beta.threads.runs.create(
-        thread_id=threadId,
-        assistant_id=getAssistantId(apiKey),
-    )
+    try:
+        return client.beta.threads.runs.create(
+            thread_id=threadId,
+            assistant_id=getAssistantId(apiKey),
+        )
+    except NotFoundError:
+        st.cache_data.clear()
+        return client.beta.threads.runs.create(
+            thread_id=threadId,
+            assistant_id=getAssistantId(apiKey),
+        )
 
 
 def get_run(run_id, thread_id):
