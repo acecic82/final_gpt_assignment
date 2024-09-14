@@ -1,6 +1,6 @@
 import openai as client
 from assistant import makeThread, excuteRun, submitToolOutputs
-from openai.error import AuthenticationError
+from openai import AuthenticationError
 import streamlit as st
 
 
