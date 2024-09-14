@@ -18,7 +18,7 @@ with st.sidebar:
         
         Github : https://github.com/acecic82/final_gpt_assignment 
 
-        streamlit : https://finalgptassignment-hzpakc7ay8bm7dumwh9yta.streamlit.app/
+        streamlit : https://finalgptassignment-2x5hgzottjvacfozdyrygs.streamlit.app/
 
         """
     )
